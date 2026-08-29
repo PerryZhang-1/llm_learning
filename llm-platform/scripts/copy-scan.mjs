@@ -33,14 +33,17 @@ function walk(dir) {
   return out;
 }
 
-/** 去掉注释行，避免开发注释误报 */
+/** 去掉注释：整行注释 + 行尾注释（URL 的 // 前面是冒号，不受影响）。
+ *  先统一换行——JS 正则的 . 不匹配 \r，CRLF 文件会让行尾注释剥离失配。 */
 function stripComments(text) {
   return text
+    .replace(/\r\n/g, "\n")
     .split("\n")
     .filter((line) => {
       const t = line.trim();
       return !(t.startsWith("//") || t.startsWith("*") || t.startsWith("/*"));
     })
+    .map((line) => line.replace(/\s\/\/.*$/, ""))
     .join("\n");
 }
 

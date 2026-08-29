@@ -27,6 +27,7 @@ import {
   deriveChunks,
   parseSection,
 } from "../../content/scripts/parse-section.mjs";
+import { embedModelName, embedTexts, embeddingsEnabled, toVectorLiteral } from "../src/lib/embeddings";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const argv = process.argv.slice(2);
@@ -216,12 +217,14 @@ async function main() {
   const started = Date.now();
   const counts = await prisma.$transaction(
     async (tx) => {
-      // 延迟外键检查到 commit：先删后插期间，WrongBook/Feedback 对同 id 记录的引用不受影响
-      try {
-        await tx.$executeRawUnsafe("PRAGMA defer_foreign_keys = ON");
-      } catch {
-        /* FK 未启用时无需 defer */
-      }
+      // 用户数据搬移策略（跨数据库通用，不依赖方言魔法）：
+      // 错题本/反馈带真实外键，先整表搬出，内容重灌（id 不变）后原样放回。
+      // UserProgress/PointsLog 引用的是字符串 id（无 FK），不受影响。
+      const savedWrong = await tx.wrongBook.findMany();
+      const savedFeedback = await tx.feedback.findMany();
+      await tx.wrongBook.deleteMany();
+      await tx.feedback.deleteMany();
+
       await tx.knowledgeChunk.deleteMany();
       await tx.llmExercise.deleteMany();
       await tx.llmSection.deleteMany();
@@ -255,19 +258,59 @@ async function main() {
             },
           });
         }
-      for (const [ci, body] of s.chunks.entries()) {
-        await tx.knowledgeChunk.create({
-          // 确定性 id：同步幂等（快照字节级一致）+ 幻觉事故可稳定归因（§10.4）
-          data: { id: `chk-${s.id}-${ci + 1}`, sectionId: s.id, body, version: s.version, embeddingModel: "none" },
+        for (const [ci, body] of s.chunks.entries()) {
+          await tx.knowledgeChunk.create({
+            // 确定性 id：同步幂等（快照字节级一致）+ 幻觉事故可稳定归因（§10.4）
+            data: { id: `chk-${s.id}-${ci + 1}`, sectionId: s.id, body, version: s.version, embeddingModel: "none" },
+          });
+        }
+      }
+
+      // 用户数据原样放回（id 一并保留）
+      for (const w of savedWrong) {
+        await tx.wrongBook.create({
+          data: {
+            id: w.id, userId: w.userId, exerciseId: w.exerciseId,
+            attempts: w.attempts, lastResult: w.lastResult, conquered: w.conquered,
+          },
         });
       }
+      for (const f of savedFeedback) {
+        await tx.feedback.create({
+          data: {
+            id: f.id, userId: f.userId, sectionId: f.sectionId,
+            content: f.content, status: f.status, createdAt: f.createdAt,
+          },
+        });
       }
+
       return { sections: sections.length, exercises: totalExercises, chunks: totalChunks };
     },
     { timeout: 60_000 }
   );
 
   console.log(`\n✅ 同步完成（${Date.now() - started}ms）：重灌 ${counts.sections} 小节 / ${counts.exercises} 习题 / ${counts.chunks} 知识块；模块与章节按 catalog 重建`);
+
+  // ---------- 嵌入生成（R3）：有 DASHSCOPE_API_KEY 时为知识块写入 pgvector 向量 ----------
+  if (embeddingsEnabled()) {
+    const pending = await prisma.knowledgeChunk.findMany({
+      where: { embeddingModel: "none" },
+      orderBy: { id: "asc" },
+    });
+    const vecs = await embedTexts(pending.map((c) => c.body));
+    if (vecs) {
+      for (let i = 0; i < pending.length; i++) {
+        await prisma.$executeRaw`UPDATE "KnowledgeChunk"
+          SET embedding = ${toVectorLiteral(vecs[i])}::vector, "embeddingModel" = ${embedModelName()}
+          WHERE id = ${pending[i].id}`;
+      }
+      console.log(`嵌入完成：${pending.length} 个知识块（${embedModelName()}，1024 维）`);
+    } else {
+      console.log("⚠ 嵌入生成未成功，知识块保持关键词检索降级（答疑功能不受影响）");
+    }
+  } else {
+    console.log("未配置 DASHSCOPE_API_KEY，知识块保持关键词检索降级");
+  }
 }
 
 main()

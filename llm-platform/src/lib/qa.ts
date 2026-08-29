@@ -1,15 +1,24 @@
 import { prisma } from "./db";
+import { embedModelName, embedTexts, embeddingsEnabled, toVectorLiteral } from "./embeddings";
 
 /**
- * AI 答疑（开发文档 §10）
- * 开发环境：无嵌入模型 → 关键词匹配检索降级；无 LLM_API_KEY → 返回检索片段 + 温和降级提示
- * 生产环境：bge-m3 嵌入 + pgvector 余弦检索 + LLM 生成（注入总量 ≤4K tokens）
+ * AI 答疑（开发文档 §10，生产档 R3）
+ * 检索：优先 pgvector 余弦检索（余弦距离 ≤ 0.35，即相似度 ≥ 0.65）；无嵌入/无 key 降级关键词匹配
+ * 生成：DashScope OpenAI 兼容端点（LLM_MODEL = qwen3.7-plus）
+ * 上下文预算：注入总量 ≤ 4K tokens（按字符近似预算：小节全文 2500 字 + 知识块合计 1800 字）
+ * 降级链：无 LLM key → 返回检索片段；检索为空 → 坦诚告知
  */
+
+const SIMILARITY_THRESHOLD_DISTANCE = 0.35; // 余弦距离阈值 = 1 - 0.65（§10.4 初始阈值）
+const SECTION_CONTEXT_MAX_CHARS = 2500;
+const CHUNKS_CONTEXT_MAX_CHARS = 1800;
 
 const SYSTEM_PROMPT = `你是大模型自学平台的答疑助手。规则：
 1. 只基于【参考资料】回答；资料中没有的内容，明确说"这部分课程暂时没覆盖，建议查阅官方文档"，禁止编造。
 2. 禁止回答与课程无关的问题（政治、医疗、投资建议等），温和引导回学习。
-3. 语气温和、鼓励，用中文，适当使用类比帮助理解。`;
+3. 不越阶：学员问到高阶主题（如模型微调、底层训练细节）时，温和引导"这部分在高阶包里，先把当前小节学扎实"，不要直接展开讲解。
+4. 不输出完整的大型项目代码：代码回复仅限片段级解释与纠错。
+5. 语气温和、鼓励，用中文，适当使用类比帮助理解。`;
 
 interface RetrievedChunk {
   body: string;
@@ -17,8 +26,35 @@ interface RetrievedChunk {
   score: number;
 }
 
-/** 简易关键词检索（开发环境降级方案；生产替换为向量检索） */
-async function retrieve(query: string, topK = 3): Promise<RetrievedChunk[]> {
+/** 生产档：pgvector 余弦检索（余弦距离越小越相似） */
+async function retrieveSemantic(
+  query: string,
+  topK = 3
+): Promise<RetrievedChunk[] | null> {
+  if (!embeddingsEnabled()) return null;
+  const vec = (await embedTexts([query]))?.[0];
+  if (!vec) return null;
+  const literal = toVectorLiteral(vec);
+  try {
+    const rows = await prisma.$queryRaw<
+      { sectionId: string; body: string; distance: number }[]
+    >`
+      SELECT "sectionId", body, embedding <=> ${literal}::vector AS distance
+      FROM "KnowledgeChunk"
+      WHERE "embeddingModel" = ${embedModelName()} AND embedding IS NOT NULL
+      ORDER BY embedding <=> ${literal}::vector
+      LIMIT ${topK}
+    `;
+    return rows
+      .filter((r) => r.distance <= SIMILARITY_THRESHOLD_DISTANCE)
+      .map((r) => ({ body: r.body, sectionId: r.sectionId, score: 1 - r.distance }));
+  } catch {
+    return null; // 检索失败降级关键词匹配
+  }
+}
+
+/** 降级档：关键词匹配检索 */
+async function retrieveKeyword(query: string, topK = 3): Promise<RetrievedChunk[]> {
   const chunks = await prisma.knowledgeChunk.findMany({
     include: { section: { select: { title: true } } },
   });
@@ -43,7 +79,7 @@ async function retrieve(query: string, topK = 3): Promise<RetrievedChunk[]> {
 
 /** 调用 OpenAI 兼容接口（未配置 Key 时返回 null） */
 async function callLlm(messages: { role: string; content: string }[]): Promise<string | null> {
-  const apiKey = process.env.LLM_API_KEY;
+  const apiKey = process.env.DASHSCOPE_API_KEY || process.env.LLM_API_KEY;
   if (!apiKey) return null;
   const baseUrl =
     process.env.LLM_BASE_URL || "https://dashscope.aliyuncs.com/compatible-mode/v1";
@@ -53,8 +89,8 @@ async function callLlm(messages: { role: string; content: string }[]): Promise<s
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
         Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
       },
       body: JSON.stringify({ model, messages, temperature: 0.3 }),
     });
@@ -76,7 +112,9 @@ export async function answerQuestion(
   question: string,
   sectionId?: string
 ): Promise<QaAnswer> {
-  const chunks = await retrieve(question);
+  // 检索：语义优先，降级关键词
+  const semantic = await retrieveSemantic(question);
+  const chunks = semantic ?? (await retrieveKeyword(question));
 
   // 携带小节上下文（若提问来自某小节页面）
   let sectionCtx = "";
@@ -86,13 +124,9 @@ export async function answerQuestion(
       select: { title: true, bodyMarkdown: true },
     });
     if (section) {
-      sectionCtx = `\n【当前学习小节】${section.title}\n${section.bodyMarkdown.slice(0, 1500)}`;
+      sectionCtx = `\n【当前学习小节】${section.title}\n${section.bodyMarkdown.slice(0, SECTION_CONTEXT_MAX_CHARS)}`;
     }
   }
-
-  const context = chunks
-    .map((c, i) => `【参考资料${i + 1}】${c.body}`)
-    .join("\n");
 
   if (chunks.length === 0 && !sectionCtx) {
     return {
@@ -103,20 +137,30 @@ export async function answerQuestion(
     };
   }
 
-  const userPrompt = `${context}${sectionCtx}\n\n【学员提问】${question}`;
+  // 上下文预算（≤4K tokens 近似）：知识块合计 1800 字 + 小节全文 2500 字
+  const chunkContext = chunks
+    .map((c, i) => `【参考资料${i + 1}】${c.body}`)
+    .join("\n")
+    .slice(0, CHUNKS_CONTEXT_MAX_CHARS);
+
+  const userPrompt = `${chunkContext}${sectionCtx}\n\n【学员提问】${question}`;
   const llmAnswer = await callLlm([
     { role: "system", content: SYSTEM_PROMPT },
     { role: "user", content: userPrompt },
   ]);
 
   if (llmAnswer) {
-    return { answer: llmAnswer, degraded: false, sources: chunks.map((c) => c.sectionId) };
+    return {
+      answer: llmAnswer,
+      degraded: false,
+      sources: [...new Set(chunks.map((c) => c.sectionId))],
+    };
   }
 
   // 降级：未配置 LLM，返回检索到的最相关片段
   return {
     answer: `（开发模式：未配置 LLM，以下是最相关的课程内容）\n${chunks[0]?.body ?? "暂无相关内容"}`,
     degraded: true,
-    sources: chunks.map((c) => c.sectionId),
+    sources: [...new Set(chunks.map((c) => c.sectionId))],
   };
 }

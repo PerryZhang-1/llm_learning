@@ -3,10 +3,9 @@ generator client {
 }
 
 datasource db {
-  // 开发环境：SQLite（本地零依赖可运行）
-  // 生产环境：切换为 provider = "postgresql"（Neon/Supabase，启用 pgvector 扩展），
-  // 并将 KnowledgeChunk.embedding 恢复为 vector(1024)（bge-m3）
-  provider = "sqlite"
+  // 生产档（R2，2026-08-29）：Neon PostgreSQL + pgvector
+  // 本地与线上共用同一 Neon 实例；旧 SQLite dev.db 保留在 .gitignore 中作为历史
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -146,13 +145,15 @@ model DailyPointCap {
 }
 
 model KnowledgeChunk {
-  // AI 答疑 RAG 知识块；开发环境用余弦相似度 + Bytes 存向量，生产用 pgvector
-  id            String   @id @default(cuid())
-  sectionId     String
-  body          String
-  embedding     Bytes? // Float32Array 序列化；生产环境为 vector(1024)
-  embeddingModel String  @default("none") // 开发环境无嵌入模型时为 "none"（关键词匹配降级）
-  version       String // 与小节 version 一致；内容更新必须删旧块重建
+  // AI 答疑 RAG 知识块；生产档：pgvector 余弦检索。
+  // Prisma 对 vector 类型不生成客户端字段——embedding 的写入与检索走
+  // $executeRaw/$queryRaw（见 lib/embeddings.ts、lib/qa.ts、scripts/sync-content.ts）
+  id             String                       @id @default(cuid())
+  sectionId      String
+  body           String
+  embedding      Unsupported("vector(1024)")?
+  embeddingModel String                       @default("none") // 无嵌入模型时为 "none"（关键词匹配降级）
+  version        String // 与小节 version 一致；内容更新必须删旧块重建
 
   section LlmSection @relation(fields: [sectionId], references: [id])
 
@@ -187,4 +188,16 @@ model Feedback {
   section LlmSection @relation(fields: [sectionId], references: [id])
 
   @@index([status])
+}
+
+model VerificationCode {
+  // 邮箱验证码登录（生产档 R2）：随机 6 位码、10 分钟过期、60 秒重发频控、5 次校验失败作废
+  id        String   @id @default(cuid())
+  email     String
+  code      String
+  attempts  Int      @default(0)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([email, createdAt])
 }

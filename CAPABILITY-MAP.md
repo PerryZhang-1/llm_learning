@@ -64,4 +64,6 @@ ui-design（横切：所有页面共用其 tokens 与组件规范）
 | 2026-08-28 | content 采用 **monorepo 子目录 `content/`**（与 llm-platform 平级） | SPEC-content / plan R1 / todo R1 已同步；CI paths 过滤 |
 | 2026-08-28 | 答疑嵌入走 **DashScope API**（text-embedding-v3，1024 维） | SPEC-qa / plan R3 / todo R3 已同步；与 pgvector `vector(1024)` 一致 |
 | 2026-08-28 | **V1 仅浅色**，不做深色模式 | SPEC-ui-design / todo R4 已同步；重建 tokens 时删除暗色分支 |
+| 2026-08-29 | **数据库切换 Neon PostgreSQL**（本地与生产同源），本地 dev.db 退役留作备份；R2 生产档完成（Resend 验证码 / 60s 频控 / 10min 过期 / 5 次作废 / crypto 随机码 / Cookie 加固） | SPEC-auth / SPEC-content 已同步 |
+| 2026-08-29 | **答疑生产档完成**：嵌入 qwen3.7-text-embedding（实测 1024 维）+ 生成 qwen3.7-plus（Perry 指定）；pgvector 余弦检索，相似度阈值 0.65（距离 0.35）；上下文预算 4K；提示词补齐不越阶/不输出完整项目代码 | SPEC-qa 已同步 |
 | 2026-08-28 | **项目根迁移至 `D:\LLM_learning_v2`**，全部文件以新根为准（原 D:\LLM_learning 保留副本，v2 验证通过后可删除） | 全部文档与 CI 路径以 v2 为准；node_modules/.next 未复制，在 v2 重装 |
