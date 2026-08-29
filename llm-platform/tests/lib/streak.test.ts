@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { PrismaClient } from "@prisma/client";
 import { todayBJ, addDaysBJ } from "../../src/lib/time";
 import { touchActivity } from "../../src/lib/streak";
+import { createTestUser } from "./helpers";
 
 /**
  * 连续学习专项（§6.3 判定公式 + §12.2 断签不回退）
