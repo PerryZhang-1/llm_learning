@@ -1,0 +1,13 @@
+# 依赖与构建产物
+node_modules/
+.next/
+*.tsbuildinfo
+
+# 本地环境与数据库（content/ 是内容事实源，dev.db 可由 seed/sync 重建）
+.env
+dev.db
+dev.db-journal
+
+# 日志（但 B 级代码的 AutoDL 验证日志必须入库）
+*.log
+!content/verification/*.log
