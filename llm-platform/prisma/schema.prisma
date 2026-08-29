@@ -1,0 +1,190 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  // 开发环境：SQLite（本地零依赖可运行）
+  // 生产环境：切换为 provider = "postgresql"（Neon/Supabase，启用 pgvector 扩展），
+  // 并将 KnowledgeChunk.embedding 恢复为 vector(1024)（bge-m3）
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============ 五集合主模型（对齐开发文档 §6.1 / PRD §8） ============
+
+// 集合1：模块
+model LlmModule {
+  id          String       @id @default(cuid())
+  code        String       @unique // "prep" | "core_principle" | "app" | "engineering"
+  name        String
+  description String
+  isOptional  Boolean      @default(false) // 可选包标记（预习包/高阶包）
+  order       Int
+  chapters    LlmChapter[]
+}
+
+// 集合2：章节
+model LlmChapter {
+  id       String       @id @default(cuid())
+  moduleId String
+  module   LlmModule    @relation(fields: [moduleId], references: [id])
+  name     String
+  order    Int
+  sections LlmSection[]
+}
+
+// 集合3：小节
+model LlmSection {
+  id               String        @id @default(cuid())
+  chapterId        String
+  chapter          LlmChapter    @relation(fields: [chapterId], references: [id])
+  title            String
+  bodyMarkdown     String // 正文
+  codeSnippets     String? // JSON 字符串：可选代码片段（含版本标注）
+  sectionType      String        @default("normal") // normal | code_practice
+  estimatedMinutes Int // 5–10
+  version          String // 内容版本标注（如 "2026-08"）
+  sourceRefs       String // JSON 数组字符串：参考源溯源
+  codeVerified     Boolean       @default(false) // CI/人工验证通过标记
+  order            Int
+  exercises        LlmExercise[]
+  chunks           KnowledgeChunk[]
+  feedbacks        Feedback[]
+}
+
+// 集合4：习题
+model LlmExercise {
+  id             String   @id @default(cuid())
+  sectionId      String
+  section        LlmSection @relation(fields: [sectionId], references: [id])
+  question       String
+  type           String // "single" | "multi" | "judge"
+  options        String // JSON 数组
+  answer         String // JSON：仅服务端持有，前端不返回
+  explanation    String // 温和解析文案（对错均展示）
+  knowledgePoint String // 知识点标签（错题一键回看用）
+  order          Int
+  wrongBooks     WrongBook[]
+}
+
+// 集合5：用户进度
+model UserProgress {
+  id          String    @id @default(cuid())
+  userId      String
+  sectionId   String
+  completed   Boolean   @default(false) // 阅读完正文即完成（习题对错不影响）
+  completedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, sectionId])
+  @@index([userId])
+}
+
+// ============ 激励扩展表（只增不减原则的数据层保证，§6.2） ============
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique // 邮箱验证码登录（无密码存储）
+  nickname      String
+  points        Int       @default(0) // 积分：只有加法操作
+  streakCurrent Int       @default(0) // 当前连续天数
+  streakBest    Int       @default(0) // 历史最高：永不下降
+  lastActiveDay String? // "YYYY-MM-DD"（北京时间）
+  qaRemainToday Int       @default(20) // 每日答疑余量（惰性重置）
+  qaResetDate   String? // "YYYY-MM-DD"
+  prepPackOn    Boolean   @default(false) // 预习包开关（仅控展示）
+  advPackOn     Boolean   @default(false) // 高阶包开关（仅控展示）
+  registeredDay String // 注册日 "YYYY-MM-DD"，用于新账号当日答疑限 5 次（§7.2 规则10）
+  assessment    String? // 测评结果结构化 JSON（§7.3）
+  createdAt     DateTime  @default(now())
+
+  badges   UserBadge[]
+  progress UserProgress[]
+  wrongBooks WrongBook[]
+  feedbacks Feedback[]
+  pointsLog PointsLog[]
+}
+
+model UserBadge {
+  // 勋章：一旦插入永不删除（不存在 delete API）
+  id        String   @id @default(cuid())
+  userId    String
+  badgeCode String // 进度类/行为类/探索类
+  earnedAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, badgeCode])
+}
+
+model PointsLog {
+  // 积分流水：type 只有加分类型，幂等防并发重复加分
+  id        String   @id @default(cuid())
+  userId    String
+  dayKey    String // "YYYY-MM-DD"（北京时间），用于每日去重/封顶
+  delta     Int // 恒为正数（应用层校验）
+  type      String // SECTION_DONE|EXERCISE_SUBMIT|CODE_PRACTICE|FEEDBACK
+  refId     String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@unique([userId, type, refId, dayKey]) // 同用户+同类型+同对象+同日只加一次分
+  @@index([userId, dayKey])
+}
+
+model DailyPointCap {
+  // 每日分源封顶表，防刷分（§9.1）
+  id     String @id @default(cuid())
+  userId String
+  dayKey String
+  source String // EXERCISE_SUBMIT | FEEDBACK | TOTAL
+  points Int    @default(0)
+
+  @@unique([userId, dayKey, source])
+}
+
+model KnowledgeChunk {
+  // AI 答疑 RAG 知识块；开发环境用余弦相似度 + Bytes 存向量，生产用 pgvector
+  id            String   @id @default(cuid())
+  sectionId     String
+  body          String
+  embedding     Bytes? // Float32Array 序列化；生产环境为 vector(1024)
+  embeddingModel String  @default("none") // 开发环境无嵌入模型时为 "none"（关键词匹配降级）
+  version       String // 与小节 version 一致；内容更新必须删旧块重建
+
+  section LlmSection @relation(fields: [sectionId], references: [id])
+
+  @@index([sectionId])
+}
+
+model WrongBook {
+  // 错题本：无限重做，记录最后状态与是否征服
+  id         String  @id @default(cuid())
+  userId     String
+  exerciseId String
+  attempts   Int     @default(1)
+  lastResult Boolean
+  conquered  Boolean @default(false) // 曾做错后重做答对即置 true，永不回退
+
+  user     User        @relation(fields: [userId], references: [id])
+  exercise LlmExercise @relation(fields: [exerciseId], references: [id])
+
+  @@unique([userId, exerciseId])
+}
+
+model Feedback {
+  // 内容反馈闭环（管理端确认有效后 +5 分，防垃圾反馈刷分）
+  id        String   @id @default(cuid())
+  userId    String
+  sectionId String
+  content   String
+  status    String   @default("open") // open | accepted（确认有效，发分）| fixed | rejected
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+  section LlmSection @relation(fields: [sectionId], references: [id])
+
+  @@index([status])
+}
