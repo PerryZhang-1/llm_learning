@@ -63,8 +63,8 @@ jobs:
         run: npx prisma generate
         working-directory: llm-platform
 
-      - name: 准备本地测试数据库（SQLite）
-        run: npx prisma db push --skip-generate
+      - name: 准备本地测试数据库（SQLite + 种子内容）
+        run: npx prisma db push --skip-generate && npx prisma db seed
         working-directory: llm-platform
         env:
           DATABASE_URL: "file:./test.db"
