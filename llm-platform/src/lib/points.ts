@@ -85,5 +85,6 @@ export async function awardPoints(
       data: { points: { increment: delta } },
     });
     return { awarded: true, points: delta, reason: "ok" };
-  });
+    // Neon 跨洋延迟下 Prisma 默认 5s 事务超时偶发不够；加宽不改变语义
+  }, { timeout: 30_000 });
 }

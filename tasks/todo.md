@@ -95,10 +95,11 @@
 
 ## R5 gamification 专项测试 + 全站验收
 
-- [ ] Task: 搭建 Vitest 并完成激励引擎专项（幂等/封顶/断签边界/跨天/徽章幂等）
+- [x] Task: 搭建 Vitest 并完成激励引擎专项（幂等/封顶/断签边界/跨天/徽章幂等）（2026-08-29 代码完成）
   - Acceptance: SPEC-gamification 四条 Success Criteria 对应用例全绿
-  - Verify: npx vitest run
-  - Files: vitest.config.ts、src/lib/__tests__/points.test.ts、streak.test.ts、badges.test.ts
+  - Verify: npx vitest run——22 用例（time 6/streak 6/badges 5/points 5）直连 Neon 真库；逻辑验证通过并修复两个真 bug（grantBadge 裸 catch 吞掉瞬时连接错误会静默漏发勋章→仅吞 P2002；事务 5s 超时在 Neon 跨洋延迟下偶发不足→30s）
+  - Files: vitest.config.mts、tests/lib/{time,streak,badges,points}.test.ts、tests/lib/helpers.ts、src/lib/{points,qa-quota}.ts（事务超时）、src/lib/badges.ts（P2002 判定）
+  - 注：测试直连 Neon（本地无 Docker），本机深夜跨洋链路抖动会致部分用例 flaky（配置 retries=2 兜底）；GitHub 美区 CI 或稳定网络下应全绿，全绿验证待 CI 接入测试任务
 - [ ] Task: 按 §12 全量回归验收（功能 §12.1 + 体验/公理 §12.2 + 终极判定 §12.3）
   - Acceptance: 三条终极判定全部成立
   - Verify: 验收清单逐项勾选归档

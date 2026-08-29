@@ -37,5 +37,6 @@ export async function consumeQaQuota(userId: string): Promise<QaQuotaResult> {
       data: { qaRemainToday: remain - 1 },
     });
     return { ok: true, remain: remain - 1 };
-  });
+    // 同 points.ts：事务超时加宽以适配 Neon 网络延迟
+  }, { timeout: 30_000 });
 }
