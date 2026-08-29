@@ -376,7 +376,7 @@ export default function LearnPage() {
         <aside className="h-fit rounded-xl border bg-card p-5 shadow-sm lg:sticky lg:top-16">
           <h3 className="font-bold text-foreground">🤖 AI 答疑助手</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            只基于课程内容回答；今日剩余 {qaAnswer?.remainToday ?? "…"} 次
+            只基于课程内容回答（本机模式 · 不限次）
           </p>
           <Textarea
             className="mt-3"

@@ -1,5 +1,6 @@
 import { prisma } from "./db";
 import { todayBJ } from "./time";
+import { LOCAL_USER_EMAIL } from "./session";
 
 /**
  * 答疑限流（开发文档 §6.3 + §7.2 规则10）
@@ -20,6 +21,7 @@ export async function consumeQaQuota(userId: string): Promise<QaQuotaResult> {
   return prisma.$transaction(async (tx) => {
     const user = await tx.user.findUnique({ where: { id: userId } });
     if (!user) return { ok: false, remain: 0 };
+    if (user.email === LOCAL_USER_EMAIL) return { ok: true, remain: 9999 }; // 单机模式：答疑不限次
 
     let remain = user.qaRemainToday;
     if (user.qaResetDate !== today) {

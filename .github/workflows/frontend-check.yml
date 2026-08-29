@@ -63,8 +63,14 @@ jobs:
         run: npx prisma generate
         working-directory: llm-platform
 
-      - name: 激励引擎专项测试（直连 Neon 真库）
+      - name: 准备本地测试数据库（SQLite）
+        run: npx prisma db push --skip-generate
+        working-directory: llm-platform
+        env:
+          DATABASE_URL: "file:./test.db"
+
+      - name: 激励引擎专项测试（本地 SQLite）
         run: npm test
         working-directory: llm-platform
         env:
-          DATABASE_URL: ${{ secrets.NEON_TEST_DATABASE_URL }}
+          DATABASE_URL: "file:./test.db"

@@ -27,7 +27,7 @@ import {
   deriveChunks,
   parseSection,
 } from "../../content/scripts/parse-section.mjs";
-import { embedModelName, embedTexts, embeddingsEnabled, toVectorLiteral } from "../src/lib/embeddings";
+import { embedModelName, embedTexts, embeddingsEnabled } from "../src/lib/embeddings";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const argv = process.argv.slice(2);
@@ -300,9 +300,13 @@ async function main() {
     const vecs = await embedTexts(pending.map((c) => c.body));
     if (vecs) {
       for (let i = 0; i < pending.length; i++) {
-        await prisma.$executeRaw`UPDATE "KnowledgeChunk"
-          SET embedding = ${toVectorLiteral(vecs[i])}::vector, "embeddingModel" = ${embedModelName()}
-          WHERE id = ${pending[i].id}`;
+        await prisma.knowledgeChunk.update({
+          where: { id: pending[i].id },
+          data: {
+            embedding: Buffer.from(Float32Array.from(vecs[i]).buffer),
+            embeddingModel: embedModelName(),
+          },
+        });
       }
       console.log(`嵌入完成：${pending.length} 个知识块（${embedModelName()}，1024 维）`);
     } else {

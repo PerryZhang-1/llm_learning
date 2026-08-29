@@ -66,4 +66,5 @@ ui-design（横切：所有页面共用其 tokens 与组件规范）
 | 2026-08-28 | **V1 仅浅色**，不做深色模式 | SPEC-ui-design / todo R4 已同步；重建 tokens 时删除暗色分支 |
 | 2026-08-29 | **数据库切换 Neon PostgreSQL**（本地与生产同源），本地 dev.db 退役留作备份；R2 生产档完成（Resend 验证码 / 60s 频控 / 10min 过期 / 5 次作废 / crypto 随机码 / Cookie 加固） | SPEC-auth / SPEC-content 已同步 |
 | 2026-08-29 | **答疑生产档完成**：嵌入 qwen3.7-text-embedding（实测 1024 维）+ 生成 qwen3.7-plus（Perry 指定）；pgvector 余弦检索，相似度阈值 0.65（距离 0.35）；上下文预算 4K；提示词补齐不越阶/不输出完整项目代码 | SPEC-qa 已同步 |
+| 2026-08-29 | **方向调整（Perry 决策）：转为单机本地模式**——移除邮箱登录（Resend）、移除 Neon（回 SQLite）、认证改为自动默认本地用户（管理端开放、答疑不限次）；语义检索保留（Bytes 嵌入 + 内存余弦，阈值不变）；Vercel/Sentry 部署项随之移出 | session.ts / qa.ts / sync-content.ts / workflow 已同步；SPEC-auth 标注"已随决策移除" |
 | 2026-08-28 | **项目根迁移至 `D:\LLM_learning_v2`**，全部文件以新根为准（原 D:\LLM_learning 保留副本，v2 验证通过后可删除） | 全部文档与 CI 路径以 v2 为准；node_modules/.next 未复制，在 v2 重装 |

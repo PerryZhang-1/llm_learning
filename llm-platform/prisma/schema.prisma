@@ -5,7 +5,7 @@ generator client {
 datasource db {
   // 生产档（R2，2026-08-29）：Neon PostgreSQL + pgvector
   // 本地与线上共用同一 Neon 实例；旧 SQLite dev.db 保留在 .gitignore 中作为历史
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -145,14 +145,12 @@ model DailyPointCap {
 }
 
 model KnowledgeChunk {
-  // AI 答疑 RAG 知识块；生产档：pgvector 余弦检索。
-  // Prisma 对 vector 类型不生成客户端字段——embedding 的写入与检索走
-  // $executeRaw/$queryRaw（见 lib/embeddings.ts、lib/qa.ts、scripts/sync-content.ts）
-  id             String                       @id @default(cuid())
+  // AI 答疑 RAG 知识块；单机模式：嵌入以 Bytes（Float32Array 序列化）存储，内存余弦检索
+  id             String   @id @default(cuid())
   sectionId      String
   body           String
-  embedding      Unsupported("vector(1024)")?
-  embeddingModel String                       @default("none") // 无嵌入模型时为 "none"（关键词匹配降级）
+  embedding      Bytes?
+  embeddingModel String   @default("none") // 无嵌入模型时为 "none"（关键词匹配降级）
   version        String // 与小节 version 一致；内容更新必须删旧块重建
 
   section LlmSection @relation(fields: [sectionId], references: [id])
@@ -190,14 +188,4 @@ model Feedback {
   @@index([status])
 }
 
-model VerificationCode {
-  // 邮箱验证码登录（生产档 R2）：随机 6 位码、10 分钟过期、60 秒重发频控、5 次校验失败作废
-  id        String   @id @default(cuid())
-  email     String
-  code      String
-  attempts  Int      @default(0)
-  expiresAt DateTime
-  createdAt DateTime @default(now())
 
-  @@index([email, createdAt])
-}

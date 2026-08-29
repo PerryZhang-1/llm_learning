@@ -1,9 +1,9 @@
 import { prisma } from "./db";
-import { embedModelName, embedTexts, embeddingsEnabled, toVectorLiteral } from "./embeddings";
+import { embedModelName, embedTexts, embeddingsEnabled } from "./embeddings";
 
 /**
  * AI 答疑（开发文档 §10，生产档 R3）
- * 检索：优先 pgvector 余弦检索（余弦距离 ≤ 0.35，即相似度 ≥ 0.65）；无嵌入/无 key 降级关键词匹配
+ * 检索：内存余弦（余弦距离 ≤ 0.35，即相似度 ≥ 0.65）；无嵌入/无 key 降级关键词匹配
  * 生成：DashScope OpenAI 兼容端点（LLM_MODEL = qwen3.7-plus）
  * 上下文预算：注入总量 ≤ 4K tokens（按字符近似预算：小节全文 2500 字 + 知识块合计 1800 字）
  * 降级链：无 LLM key → 返回检索片段；检索为空 → 坦诚告知
@@ -26,7 +26,7 @@ interface RetrievedChunk {
   score: number;
 }
 
-/** 生产档：pgvector 余弦检索（余弦距离越小越相似） */
+/** 单机模式：内存余弦检索（嵌入以 Bytes 存储，知识块规模小，全量加载计算即可） */
 async function retrieveSemantic(
   query: string,
   topK = 3
@@ -34,20 +34,26 @@ async function retrieveSemantic(
   if (!embeddingsEnabled()) return null;
   const vec = (await embedTexts([query]))?.[0];
   if (!vec) return null;
-  const literal = toVectorLiteral(vec);
   try {
-    const rows = await prisma.$queryRaw<
-      { sectionId: string; body: string; distance: number }[]
-    >`
-      SELECT "sectionId", body, embedding <=> ${literal}::vector AS distance
-      FROM "KnowledgeChunk"
-      WHERE "embeddingModel" = ${embedModelName()} AND embedding IS NOT NULL
-      ORDER BY embedding <=> ${literal}::vector
-      LIMIT ${topK}
-    `;
-    return rows
-      .filter((r) => r.distance <= SIMILARITY_THRESHOLD_DISTANCE)
-      .map((r) => ({ body: r.body, sectionId: r.sectionId, score: 1 - r.distance }));
+    const chunks = await prisma.knowledgeChunk.findMany({
+      where: { embeddingModel: embedModelName(), embedding: { not: null } },
+      select: { sectionId: true, body: true, embedding: true },
+    });
+    if (chunks.length === 0) return null;
+
+    const qn = Math.sqrt(vec.reduce((s, x) => s + x * x, 0));
+    const scored = chunks.map((c) => {
+      const bytes = c.embedding as unknown as Uint8Array;
+      const v = Array.from(new Float32Array(bytes.buffer, bytes.byteOffset, bytes.byteLength / 4));
+      const dot = v.reduce((s, x, i) => s + x * vec[i], 0);
+      const vn = Math.sqrt(v.reduce((s, x) => s + x * x, 0));
+      return { body: c.body, sectionId: c.sectionId, score: vn && qn ? dot / (vn * qn) : 0 };
+    });
+
+    return scored
+      .filter((s) => 1 - s.score <= SIMILARITY_THRESHOLD_DISTANCE)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, topK);
   } catch {
     return null; // 检索失败降级关键词匹配
   }
