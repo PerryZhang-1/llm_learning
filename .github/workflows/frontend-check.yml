@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "llm-platform/src/**"
+      - "llm-platform/tests/**"
+      - "llm-platform/vitest.config.mts"
       - "llm-platform/scripts/copy-scan.mjs"
       - "content/scripts/copy-rules.mjs"
       - ".github/workflows/frontend-check.yml"
@@ -11,6 +13,8 @@ on:
     branches: [main]
     paths:
       - "llm-platform/src/**"
+      - "llm-platform/tests/**"
+      - "llm-platform/vitest.config.mts"
       - "llm-platform/scripts/copy-scan.mjs"
       - "content/scripts/copy-rules.mjs"
       - ".github/workflows/frontend-check.yml"
