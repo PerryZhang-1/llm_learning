@@ -1,0 +1,35 @@
+name: content-check
+
+on:
+  pull_request:
+    paths:
+      - "content/**"
+      - ".github/workflows/content-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "content/**"
+      - ".github/workflows/content-check.yml"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 字段完整性 + 诚实性检查（规则 1/2/7 的结构项）
+        run: node content/scripts/check-frontmatter.mjs
+
+      - name: 内容静态检查（规则 4/6/8/9 + 规则 3 静态项）
+        run: node content/scripts/content-lint.mjs
+
+      - name: A 级代码运行验证（规则 3-A：CI 必须实际跑通）
+        run: node content/scripts/content-lint.mjs --run-code

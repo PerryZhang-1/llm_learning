@@ -1,0 +1,45 @@
+{
+  "$comment": "知识树定义（模块与章节的唯一事实源）。小节与习题不在此定义——由 modules/**/*.md 承载。module.id / chapter.code 是稳定 id，一经发布永不改名（UserProgress/WrongBook/Feedback/PointsLog.refId 依赖 sectionId 与习题 id；章节 id 同时是章节 code）。",
+  "modules": [
+    {
+      "id": "mod-prep",
+      "code": "prep",
+      "name": "预备包",
+      "description": "Python 与机器学习基础，按需开启，不影响主线",
+      "isOptional": true,
+      "order": 1
+    },
+    {
+      "id": "mod-core",
+      "code": "core_principle",
+      "name": "核心原理",
+      "description": "Transformer 与大模型的工作方式，一次讲透",
+      "isOptional": false,
+      "order": 2
+    },
+    {
+      "id": "mod-app",
+      "code": "app",
+      "name": "应用开发",
+      "description": "Prompt、RAG、Agent：把大模型用起来",
+      "isOptional": false,
+      "order": 3
+    },
+    {
+      "id": "mod-eng",
+      "code": "engineering",
+      "name": "高阶包 · 工程化",
+      "description": "微调、量化、部署，进阶选修",
+      "isOptional": true,
+      "order": 4
+    }
+  ],
+  "chapters": [
+    { "code": "ch-prep-py", "moduleCode": "prep", "name": "Python 基础回顾", "order": 1 },
+    { "code": "ch-core-transformer", "moduleCode": "core_principle", "name": "Transformer 第一步", "order": 1 },
+    { "code": "ch-core-attention", "moduleCode": "core_principle", "name": "注意力机制", "order": 2 },
+    { "code": "ch-app-prompt", "moduleCode": "app", "name": "Prompt 工程", "order": 1 },
+    { "code": "ch-app-rag", "moduleCode": "app", "name": "RAG 检索增强", "order": 2 },
+    { "code": "ch-eng-deploy", "moduleCode": "engineering", "name": "模型部署入门", "order": 1 }
+  ]
+}
