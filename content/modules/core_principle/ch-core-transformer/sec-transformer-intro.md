@@ -12,8 +12,8 @@ sources:
   - "The Illustrated Transformer"
 codeVerified: true
 codeLevel: "none"
-reviewedBy: "pending"
-lastReviewedAt: null
+reviewedBy: "Perry"
+lastReviewedAt: "2026-08-29"
 order: 2
 ---
 

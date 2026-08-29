@@ -11,8 +11,8 @@ sources:
   - "Python 官方教程"
 codeVerified: true
 codeLevel: "none"
-reviewedBy: "pending"
-lastReviewedAt: null
+reviewedBy: "Perry"
+lastReviewedAt: "2026-08-29"
 order: 1
 ---
 

@@ -81,6 +81,8 @@ async function main() {
     const fm = parsed.frontmatter;
 
     // ---- frontmatter 元数据 ----
+    // 注：reviewedBy/lastReviewedAt/difficulty 为 frontmatter 专属字段（不入库），
+    // 其诚实性一致性由 check-frontmatter.mjs 强制，此处不再做迁移期硬编码断言。
     const expect: Array<[string, unknown, unknown]> = [
       ["sectionId", fm.sectionId, s.id],
       ["title", fm.title, s.title],
@@ -91,8 +93,6 @@ async function main() {
       ["version", fm.version, s.version],
       ["codeVerified", fm.codeVerified, s.codeVerified],
       ["order", fm.order, s.order],
-      ["reviewedBy", fm.reviewedBy, "pending"],
-      ["lastReviewedAt", fm.lastReviewedAt, null],
     ];
     for (const [key, actual, want] of expect) {
       if (actual !== want) problem(`${label}：frontmatter.${key} 不一致（MD=${JSON.stringify(actual)} DB=${JSON.stringify(want)}）`);
