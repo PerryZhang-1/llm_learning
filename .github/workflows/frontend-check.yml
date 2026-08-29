@@ -38,3 +38,29 @@ jobs:
       - name: ESLint
         run: npm run lint
         working-directory: llm-platform
+
+  gamification-tests:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: llm-platform/package-lock.json
+
+      - name: 安装依赖
+        run: npm ci
+        working-directory: llm-platform
+
+      - name: npx prisma generate
+        run: npx prisma generate
+        working-directory: llm-platform
+
+      - name: 激励引擎专项测试（直连 Neon 真库）
+        run: npm test
+        working-directory: llm-platform
+        env:
+          DATABASE_URL: ${{ secrets.NEON_TEST_DATABASE_URL }}
