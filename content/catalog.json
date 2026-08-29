@@ -43,6 +43,8 @@
     { "code": "ch-core-alignment", "moduleCode": "core_principle", "name": "对齐：RLHF 与 DPO", "order": 5 },
     { "code": "ch-app-prompt", "moduleCode": "app", "name": "Prompt 工程", "order": 1 },
     { "code": "ch-app-rag", "moduleCode": "app", "name": "RAG 检索增强", "order": 2 },
+    { "code": "ch-app-agent", "moduleCode": "app", "name": "Agent 与工具调用", "order": 3 },
+    { "code": "ch-app-multimodal", "moduleCode": "app", "name": "多模态基础", "order": 4 },
     { "code": "ch-eng-deploy", "moduleCode": "engineering", "name": "模型部署入门", "order": 1 }
   ]
 }
