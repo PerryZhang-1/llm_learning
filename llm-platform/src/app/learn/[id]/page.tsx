@@ -4,7 +4,11 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { apiFetch, useToast } from "@/components/ui";
+import { AnimatePresence, motion } from "motion/react";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { apiFetch } from "@/components/ui";
 
 interface Exercise {
   id: string;
@@ -37,16 +41,17 @@ interface SectionData {
  * - 代码实操小节：代码块默认收起，全部展开后才允许标记完成
  * - 习题可跳过；对错均展示解析；无限重做
  * - 侧栏：AI 答疑 + 内容反馈入口
+ * - 动效（DESIGN.md）：完成横幅与解析卡片为一次性 spring 动画
  */
 export default function LearnPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
-  const { show, node } = useToast();
 
   const [data, setData] = useState<SectionData | null>(null);
   const [dwell, setDwell] = useState(0);
   const [expandedSnippets, setExpandedSnippets] = useState<Set<number>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [celebrate, setCelebrate] = useState<string | null>(null);
 
   // 习题作答状态
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
@@ -77,7 +82,11 @@ export default function LearnPage() {
   }, [id]);
 
   if (!data?.section) {
-    return <div className="flex min-h-screen items-center justify-center text-slate-400">加载中…</div>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background text-muted-foreground">
+        加载中…
+      </div>
+    );
   }
 
   const s = data.section;
@@ -95,14 +104,14 @@ export default function LearnPage() {
         }),
       });
       if (res.ok) {
-        show(
-          res.awarded
-            ? `太棒了，+${res.points} 分！${res.newBadges?.length ? "还获得了新勋章～" : ""}`
-            : "已完成！继续保持节奏～"
-        );
+        const msg = res.awarded
+          ? `太棒了，+${res.points} 分！${res.newBadges?.length ? "还获得了新勋章～" : ""}`
+          : "已完成！继续保持节奏～";
+        setCelebrate(msg);
+        setTimeout(() => setCelebrate(null), 3200);
         setData({ ...data!, section: { ...data!.section, completed: true } });
       } else {
-        show(res.message);
+        toast(res.message);
       }
     } finally {
       setBusy(false);
@@ -112,7 +121,7 @@ export default function LearnPage() {
   async function submitExercise(ex: Exercise) {
     const userAnswer = answers[ex.id];
     if (userAnswer === undefined) {
-      show("先选一个答案再提交哦");
+      toast("先选一个答案再提交哦");
       return;
     }
     const { data: res } = await apiFetch(`/api/exercises/${ex.id}/submit`, {
@@ -120,15 +129,15 @@ export default function LearnPage() {
       body: JSON.stringify({ answer: userAnswer }),
     });
     if (!res.ok) {
-      show(res.message);
+      toast(res.message);
       return;
     }
     setResults((r) => ({
       ...r,
       [ex.id]: { correct: res.correct, explanation: res.explanation, points: res.points },
     }));
-    if (res.awarded) show(`+${res.points} 分`);
-    if (res.newBadge) show("获得新勋章：错题征服者！");
+    if (res.awarded) toast(`+${res.points} 分`);
+    if (res.newBadge) toast("获得新勋章：错题征服者！");
   }
 
   async function askQa() {
@@ -142,7 +151,7 @@ export default function LearnPage() {
       if (res.ok) {
         setQaAnswer({ answer: res.answer, remainToday: res.remainToday });
       } else {
-        show(res.message);
+        toast(res.message);
       }
     } finally {
       setQaBusy(false);
@@ -154,7 +163,7 @@ export default function LearnPage() {
       method: "POST",
       body: JSON.stringify({ sectionId: id, content: feedbackText }),
     });
-    show(res.message ?? "提交失败，请重试");
+    toast(res.message ?? "提交没有成功，再试一次就好");
     if (res.ok) {
       setShowFeedback(false);
       setFeedbackText("");
@@ -162,14 +171,19 @@ export default function LearnPage() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      {node}
-      <nav className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
+    <div className="min-h-screen bg-background">
+      <nav className="sticky top-0 z-10 border-b border-border/60 bg-card/80 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-3 text-sm">
-          <Link href="/" className="font-bold text-indigo-600">大模型自学平台</Link>
-          <span className="text-slate-300">/</span>
-          <span className="text-slate-500">{s.moduleName} · {s.chapterName}</span>
-          <span className="ml-auto text-xs text-slate-400">已阅读 {Math.floor(dwell / 60)}分{dwell % 60}秒</span>
+          <Link href="/" className="font-bold text-primary">
+            大模型自学平台
+          </Link>
+          <span className="text-border">/</span>
+          <span className="text-muted-foreground">
+            {s.moduleName} · {s.chapterName}
+          </span>
+          <span className="ml-auto text-xs text-muted-foreground">
+            已阅读 {Math.floor(dwell / 60)}分{dwell % 60}秒
+          </span>
         </div>
       </nav>
 
@@ -177,14 +191,19 @@ export default function LearnPage() {
         {/* 正文区 */}
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-800">{s.title}</h1>
-            {s.completed && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs text-emerald-700">已完成</span>}
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">{s.title}</h1>
+            {s.completed && (
+              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs text-emerald-700">
+                已完成
+              </span>
+            )}
           </div>
-          <p className="mt-1 text-xs text-slate-400">
-            预计 {s.estimatedMinutes} 分钟 · 内容版本 {s.version} · 参考源：{s.sourceRefs.join("、") || "原创整理"}
+          <p className="mt-1 text-xs text-muted-foreground">
+            预计 {s.estimatedMinutes} 分钟 · 内容版本 {s.version} · 参考源：
+            {s.sourceRefs.join("、") || "原创整理"}
           </p>
 
-          <article className="prose prose-slate mt-6 max-w-none rounded-xl bg-white p-6 shadow-sm">
+          <article className="prose prose-stone mt-6 max-w-none rounded-xl border bg-card p-6 shadow-sm">
             <ReactMarkdown>{s.bodyMarkdown}</ReactMarkdown>
           </article>
 
@@ -194,7 +213,7 @@ export default function LearnPage() {
               {s.codeSnippets.map((c, i) => {
                 const open = expandedSnippets.has(i);
                 return (
-                  <div key={i} className="rounded-xl bg-white shadow-sm">
+                  <div key={i} className="rounded-xl border bg-card shadow-sm">
                     <button
                       onClick={() =>
                         setExpandedSnippets((prev) => {
@@ -204,13 +223,13 @@ export default function LearnPage() {
                           return next;
                         })
                       }
-                      className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-slate-700"
+                      className="flex w-full items-center justify-between px-4 py-3 text-sm font-medium text-foreground"
                     >
                       <span>💻 {c.title ?? `代码片段 ${i + 1}`}</span>
-                      <span className="text-xs text-indigo-500">{open ? "收起" : "展开查看"}</span>
+                      <span className="text-xs text-primary">{open ? "收起" : "展开查看"}</span>
                     </button>
                     {open && (
-                      <pre className="overflow-x-auto rounded-b-xl bg-slate-900 p-4 text-xs leading-5 text-emerald-300">
+                      <pre className="overflow-x-auto rounded-b-xl bg-zinc-900 p-4 text-xs leading-5 text-zinc-100">
                         <code>{c.code}</code>
                       </pre>
                     )}
@@ -218,65 +237,76 @@ export default function LearnPage() {
                 );
               })}
               {s.sectionType === "code_practice" && !allSnippetsExpanded && (
-                <p className="text-xs text-slate-400">
-                  把每个代码块都展开看一遍，再标记完成哦（还剩 {s.codeSnippets.length - expandedSnippets.size} 个）
+                <p className="text-xs text-muted-foreground">
+                  把每个代码块都展开看一遍，再标记完成哦（还剩{" "}
+                  {s.codeSnippets.length - expandedSnippets.size} 个）
                 </p>
               )}
             </div>
           )}
 
-          {/* 完成按钮 */}
+          {/* 完成按钮 + 庆祝横幅（DESIGN.md 动效：一次性 spring） */}
           <div className="mt-6 flex items-center gap-3">
-            <button
+            <Button
               onClick={markComplete}
               disabled={busy || s.completed}
-              className="rounded-lg bg-indigo-600 px-6 py-3 font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              className="px-6 py-3"
             >
               {s.completed ? "已完成 ✓" : busy ? "提交中…" : "我读完了，标记完成"}
-            </button>
-            <button
-              onClick={() => setShowFeedback((v) => !v)}
-              className="rounded-lg border border-slate-200 px-4 py-3 text-sm text-slate-500 hover:border-indigo-300"
-            >
+            </Button>
+            <Button variant="outline" onClick={() => setShowFeedback((v) => !v)} className="py-3">
               内容有问题？反馈
-            </button>
+            </Button>
           </div>
 
+          <AnimatePresence>
+            {celebrate && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.92, y: 8 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.97 }}
+                transition={{ type: "spring", stiffness: 320, damping: 24 }}
+                className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-medium text-emerald-700"
+              >
+                🎉 {celebrate}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           {showFeedback && (
-            <div className="mt-4 rounded-xl bg-white p-4 shadow-sm">
-              <textarea
-                className="w-full rounded-lg border border-slate-200 p-3 text-sm focus:border-indigo-400 focus:outline-none"
+            <div className="mt-4 rounded-xl border bg-card p-4 shadow-sm">
+              <Textarea
                 rows={3}
                 placeholder="告诉我们哪里有误（至少 10 个字，确认有效会加 5 分答谢）"
                 value={feedbackText}
                 onChange={(e) => setFeedbackText(e.target.value)}
               />
-              <button
-                onClick={submitFeedback}
-                className="mt-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"
-              >
+              <Button size="sm" className="mt-2" onClick={submitFeedback}>
                 提交反馈
-              </button>
+              </Button>
             </div>
           )}
 
           {/* 习题区 */}
           {s.exercises.length > 0 && (
             <div className="mt-10">
-              <h2 className="text-lg font-bold text-slate-800">巩固练习</h2>
-              <p className="mt-1 text-xs text-slate-400">可以跳过，做错了也没关系，随时重做</p>
+              <h2 className="text-lg font-bold text-foreground">巩固练习</h2>
+              <p className="mt-1 text-xs text-muted-foreground">
+                可以跳过，做错了也没关系，随时重做
+              </p>
               <div className="mt-4 space-y-5">
                 {s.exercises.map((ex, idx) => (
-                  <div key={ex.id} className="rounded-xl bg-white p-5 shadow-sm">
-                    <p className="text-sm font-medium text-slate-700">
+                  <div key={ex.id} className="rounded-xl border bg-card p-5 shadow-sm">
+                    <p className="text-sm font-medium text-foreground">
                       {idx + 1}. {ex.question}
-                      <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-400">
+                      <span className="ml-2 rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">
                         {ex.knowledgePoint}
                       </span>
                     </p>
                     <div className="mt-3 flex flex-col gap-2">
                       {ex.options.map((opt, oi) => {
-                        const val = ex.type === "multi" ? oi : ex.type === "judge" ? oi === 0 : oi;
+                        const val =
+                          ex.type === "multi" ? oi : ex.type === "judge" ? oi === 0 : oi;
                         const selected =
                           ex.type === "multi"
                             ? Array.isArray(answers[ex.id]) &&
@@ -298,10 +328,10 @@ export default function LearnPage() {
                                 setAnswers({ ...answers, [ex.id]: val });
                               }
                             }}
-                            className={`rounded-lg border px-3 py-2 text-left text-sm ${
+                            className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
                               selected
-                                ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                                : "border-slate-200 text-slate-600 hover:border-indigo-300"
+                                ? "border-primary bg-accent text-accent-foreground"
+                                : "border-border bg-card text-muted-foreground hover:border-ring/60"
                             }`}
                           >
                             {opt}
@@ -310,27 +340,31 @@ export default function LearnPage() {
                       })}
                     </div>
                     <div className="mt-3 flex items-center gap-3">
-                      <button
-                        onClick={() => submitExercise(ex)}
-                        className="rounded-lg bg-indigo-600 px-4 py-2 text-sm text-white hover:bg-indigo-700"
-                      >
+                      <Button size="sm" onClick={() => submitExercise(ex)}>
                         {results[ex.id] ? "再试一次" : "提交答案"}
-                      </button>
+                      </Button>
                       {results[ex.id] && (
                         <span
                           className={`text-sm font-medium ${
                             results[ex.id].correct ? "text-emerald-600" : "text-amber-600"
                           }`}
                         >
-                          {results[ex.id].correct ? "✓ 答对了" : "答错了，没关系"}
+                          {results[ex.id].correct ? "✓ 答对了" : "差一点点，看看解析"}
                         </span>
                       )}
                     </div>
-                    {results[ex.id] && (
-                      <div className="mt-3 rounded-lg bg-slate-50 p-3 text-sm leading-6 text-slate-600">
-                        💡 {results[ex.id].explanation}
-                      </div>
-                    )}
+                    <AnimatePresence>
+                      {results[ex.id] && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ duration: 0.25, ease: "easeOut" }}
+                          className="mt-3 rounded-lg bg-muted p-3 text-sm leading-6 text-muted-foreground"
+                        >
+                          💡 {results[ex.id].explanation}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 ))}
               </div>
@@ -339,27 +373,27 @@ export default function LearnPage() {
         </div>
 
         {/* 侧栏：AI 答疑 */}
-        <aside className="lg:sticky lg:top-16 h-fit rounded-xl bg-white p-5 shadow-sm">
-          <h3 className="font-bold text-slate-800">🤖 AI 答疑助手</h3>
-          <p className="mt-1 text-xs text-slate-400">
+        <aside className="h-fit rounded-xl border bg-card p-5 shadow-sm lg:sticky lg:top-16">
+          <h3 className="font-bold text-foreground">🤖 AI 答疑助手</h3>
+          <p className="mt-1 text-xs text-muted-foreground">
             只基于课程内容回答；今日剩余 {qaAnswer?.remainToday ?? "…"} 次
           </p>
-          <textarea
-            className="mt-3 w-full rounded-lg border border-slate-200 p-3 text-sm focus:border-indigo-400 focus:outline-none"
+          <Textarea
+            className="mt-3"
             rows={3}
             placeholder="对本小节有什么疑问？"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
           />
-          <button
+          <Button
             onClick={askQa}
             disabled={qaBusy || !question.trim()}
-            className="mt-2 w-full rounded-lg bg-indigo-600 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="mt-2 w-full"
           >
             {qaBusy ? "思考中…" : "提问"}
-          </button>
+          </Button>
           {qaAnswer && (
-            <div className="mt-3 whitespace-pre-wrap rounded-lg bg-indigo-50 p-3 text-sm leading-6 text-slate-700">
+            <div className="mt-3 whitespace-pre-wrap rounded-lg bg-accent p-3 text-sm leading-6 text-accent-foreground">
               {qaAnswer.answer}
             </div>
           )}

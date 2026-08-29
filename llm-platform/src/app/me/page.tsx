@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { apiFetch, Page, useAuthGuard, useToast } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { apiFetch, Page, PageHeader, CardBox, useAuthGuard } from "@/components/ui";
 
 interface Badge {
   code: string;
@@ -40,7 +41,6 @@ export default function MePage() {
   const { data: growth } = useAuthGuard<Growth>(() => apiFetch("/api/me/growth"));
   const [wrongItems, setWrongItems] = useState<WrongItem[] | null>(null);
   const [tab, setTab] = useState<"badges" | "wrongbook">("badges");
-  const { node } = useToast();
 
   async function loadWrongbook() {
     if (wrongItems) return;
@@ -49,39 +49,39 @@ export default function MePage() {
   }
 
   if (!growth) {
-    return <Page><div className="text-slate-400">加载中…</div></Page>;
+    return (
+      <Page>
+        <div className="text-muted-foreground">加载中…</div>
+      </Page>
+    );
   }
 
   const earnedCount = growth.badges.filter((b) => b.earned).length;
 
   return (
     <Page>
-      {node}
-      <h1 className="text-2xl font-bold text-slate-800">个人中心</h1>
+      <PageHeader title="个人中心" />
 
       <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-4">
-        <Card label="总积分" value={growth.points} />
-        <Card label="连续学习" value={`${growth.streakCurrent} 天`} />
-        <Card label="历史最高连续" value={`${growth.streakBest} 天`} />
-        <Card label="完成小节" value={`${growth.completedSections}/${growth.totalSections}`} />
+        <StatCard label="总积分" value={growth.points} />
+        <StatCard label="连续学习" value={`${growth.streakCurrent} 天`} />
+        <StatCard label="历史最高连续" value={`${growth.streakBest} 天`} />
+        <StatCard
+          label="完成小节"
+          value={`${growth.completedSections}/${growth.totalSections}`}
+        />
       </div>
 
       <div className="mt-6 flex gap-2">
-        <Link
-          href="/assessment"
-          className="rounded-lg border border-indigo-200 px-4 py-2 text-sm text-indigo-600 hover:bg-indigo-50"
-        >
+        <Button variant="outline" onClick={() => (window.location.href = "/assessment")}>
           重新测评
-        </Link>
-        <Link
-          href="/tree"
-          className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-500 hover:border-indigo-300"
-        >
+        </Button>
+        <Button variant="ghost" onClick={() => (window.location.href = "/tree")}>
           去看知识树
-        </Link>
+        </Button>
       </div>
 
-      <div className="mt-8 flex gap-4 border-b border-slate-200">
+      <div className="mt-8 flex gap-4 border-b border-border">
         <TabButton active={tab === "badges"} onClick={() => setTab("badges")}>
           勋章墙（{earnedCount}/{growth.badges.length}）
         </TabButton>
@@ -101,49 +101,53 @@ export default function MePage() {
           {growth.badges.map((b) => (
             <div
               key={b.code}
-              className={`rounded-xl p-4 text-center shadow-sm ${
-                b.earned ? "bg-white" : "bg-slate-100 opacity-60"
+              className={`rounded-xl border p-4 text-center ${
+                b.earned ? "border-primary/20 bg-card shadow-sm" : "border-border bg-muted opacity-60"
               }`}
             >
               <div className="text-3xl">{b.earned ? "🏅" : "🔒"}</div>
-              <div className="mt-2 text-sm font-bold text-slate-700">{b.name}</div>
-              <div className="mt-1 text-xs text-slate-400">{b.desc}</div>
+              <div className="mt-2 text-sm font-bold text-foreground">{b.name}</div>
+              <div className="mt-1 text-xs text-muted-foreground">{b.desc}</div>
             </div>
           ))}
         </div>
       ) : wrongItems === null ? (
-        <div className="mt-6 text-slate-400">加载中…</div>
+        <div className="mt-6 text-muted-foreground">加载中…</div>
       ) : wrongItems.length === 0 ? (
-        <div className="mt-6 rounded-xl bg-white p-8 text-center text-slate-400 shadow-sm">
+        <div className="mt-6 rounded-xl border bg-card p-8 text-center text-muted-foreground shadow-sm">
           还没有错题，保持这个状态～
         </div>
       ) : (
         <div className="mt-6 space-y-3">
           {wrongItems.map((w) => (
-            <div key={w.exerciseId} className="rounded-xl bg-white p-4 shadow-sm">
+            <CardBox key={w.exerciseId} className="p-4">
               <div className="flex items-center gap-2">
-                <span className={`rounded-full px-2 py-0.5 text-xs ${
-                  w.conquered ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
-                }`}>
+                <span
+                  className={`rounded-full px-2 py-0.5 text-xs ${
+                    w.conquered
+                      ? "bg-emerald-100 text-emerald-700"
+                      : "bg-amber-100 text-amber-700"
+                  }`}
+                >
                   {w.conquered ? "已征服" : "待攻克"}
                 </span>
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-muted-foreground">
                   {w.sectionTitle} · 已尝试 {w.attempts} 次
                 </span>
               </div>
-              <p className="mt-2 text-sm text-slate-700">{w.question}</p>
-              <div className="mt-2 rounded-lg bg-slate-50 p-3 text-xs leading-5 text-slate-500">
+              <p className="mt-2 text-sm text-foreground">{w.question}</p>
+              <div className="mt-2 rounded-lg bg-muted p-3 text-xs leading-5 text-muted-foreground">
                 💡 {w.explanation}
               </div>
               <Link
                 href={`/learn/${w.sectionId}`}
-                className="mt-2 inline-block text-xs text-indigo-600 hover:underline"
+                className="mt-2 inline-block text-xs text-primary hover:underline"
               >
                 回到对应小节 →
               </Link>
-            </div>
+            </CardBox>
           ))}
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-muted-foreground">
             在小节页面重新做对这些题，就会点亮「已征服」～ 已征服 {growth.conqueredTotal} 题
           </p>
         </div>
@@ -152,12 +156,12 @@ export default function MePage() {
   );
 }
 
-function Card({ label, value }: { label: string; value: string | number }) {
+function StatCard({ label, value }: { label: string; value: string | number }) {
   return (
-    <div className="rounded-xl bg-white p-4 shadow-sm">
-      <div className="text-2xl font-bold text-slate-800">{value}</div>
-      <div className="mt-1 text-xs text-slate-400">{label}</div>
-    </div>
+    <CardBox className="p-4">
+      <div className="text-2xl font-bold text-foreground">{value}</div>
+      <div className="mt-1 text-xs text-muted-foreground">{label}</div>
+    </CardBox>
   );
 }
 
@@ -174,7 +178,7 @@ function TabButton({
     <button
       onClick={onClick}
       className={`border-b-2 pb-2 text-sm font-medium ${
-        active ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-400"
+        active ? "border-primary text-primary" : "border-transparent text-muted-foreground"
       }`}
     >
       {children}

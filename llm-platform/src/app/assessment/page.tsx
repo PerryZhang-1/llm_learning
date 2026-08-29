@@ -2,14 +2,15 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { apiFetch, useToast } from "@/components/ui";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { apiFetch } from "@/components/ui";
 
 /**
  * 入学测评页（§8.1）：四个温和的问题 → 生成个性化学习路径
  */
 export default function AssessmentPage() {
   const router = useRouter();
-  const { show, node } = useToast();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
     pythonLevel: "basic",
@@ -25,7 +26,7 @@ export default function AssessmentPage() {
       body: JSON.stringify(form),
     });
     if (status !== 200 || !data.ok) {
-      show(data.message ?? "提交失败，请重试");
+      toast(data.message ?? "提交没有成功，再试一次就好");
       return;
     }
     setResult(data.result);
@@ -33,17 +34,14 @@ export default function AssessmentPage() {
 
   if (result) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="w-full max-w-lg rounded-xl bg-white p-8 text-center shadow-sm">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-accent/60 to-background px-4">
+        <div className="w-full max-w-lg rounded-2xl border bg-card p-8 text-center shadow-sm">
           <div className="text-3xl">🎉</div>
-          <h1 className="mt-3 text-xl font-bold text-slate-800">你的专属路径已生成</h1>
-          <p className="mt-3 text-sm leading-6 text-slate-500">{result.summary}</p>
-          <button
-            onClick={() => router.push("/tree")}
-            className="mt-6 rounded-lg bg-indigo-600 px-8 py-3 font-medium text-white hover:bg-indigo-700"
-          >
+          <h1 className="mt-3 text-xl font-bold text-foreground">你的专属路径已生成</h1>
+          <p className="mt-3 text-sm leading-6 text-muted-foreground">{result.summary}</p>
+          <Button onClick={() => router.push("/tree")} className="mt-6 px-8 py-3">
             去看知识树
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -81,10 +79,12 @@ export default function AssessmentPage() {
   if (step < steps.length) {
     const s = steps[step];
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-sm">
-          <div className="text-xs text-slate-400">第 {step + 1} / 4 题 · 随时可以重新测评</div>
-          <h1 className="mt-2 text-lg font-bold text-slate-800">{s.title}</h1>
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-accent/60 to-background px-4">
+        <div className="w-full max-w-md rounded-2xl border bg-card p-8 shadow-sm">
+          <div className="text-xs text-muted-foreground">
+            第 {step + 1} / 4 题 · 随时可以重新测评
+          </div>
+          <h1 className="mt-2 text-lg font-bold text-foreground">{s.title}</h1>
           <div className="mt-5 flex flex-col gap-2">
             {s.options.map((o) => {
               const current =
@@ -102,10 +102,10 @@ export default function AssessmentPage() {
                       setForm({ ...form, [s.key]: o.value });
                     }
                   }}
-                  className={`rounded-lg border px-4 py-3 text-left text-sm transition ${
+                  className={`rounded-xl border px-4 py-3 text-left text-sm transition ${
                     active
-                      ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                      : "border-slate-200 text-slate-600 hover:border-indigo-300"
+                      ? "border-primary bg-accent text-accent-foreground"
+                      : "border-border bg-card text-muted-foreground hover:border-ring/60"
                   }`}
                 >
                   {o.label}
@@ -114,19 +114,15 @@ export default function AssessmentPage() {
             })}
           </div>
           <div className="mt-6 flex justify-between">
-            <button
+            <Button
+              variant="ghost"
               onClick={() => setStep(Math.max(0, step - 1))}
               disabled={step === 0}
-              className="rounded-lg px-4 py-2 text-sm text-slate-500 disabled:opacity-30"
+              className="text-muted-foreground"
             >
               上一题
-            </button>
-            <button
-              onClick={() => setStep(step + 1)}
-              className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-            >
-              下一题
-            </button>
+            </Button>
+            <Button onClick={() => setStep(step + 1)}>下一题</Button>
           </div>
         </div>
       </div>
@@ -135,35 +131,28 @@ export default function AssessmentPage() {
 
   // 第 4 题：每周可投入时间
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      {node}
-      <div className="w-full max-w-md rounded-xl bg-white p-8 shadow-sm">
-        <div className="text-xs text-slate-400">第 4 / 4 题</div>
-        <h1 className="mt-2 text-lg font-bold text-slate-800">每周大概能投入多少小时？</h1>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-accent/60 to-background px-4">
+      <div className="w-full max-w-md rounded-2xl border bg-card p-8 shadow-sm">
+        <div className="text-xs text-muted-foreground">第 4 / 4 题</div>
+        <h1 className="mt-2 text-lg font-bold text-foreground">
+          每周大概能投入多少小时？
+        </h1>
         <input
           type="range"
           min={1}
           max={20}
           value={form.weeklyHours}
           onChange={(e) => setForm({ ...form, weeklyHours: Number(e.target.value) })}
-          className="mt-6 w-full accent-indigo-600"
+          className="mt-6 w-full accent-[oklch(0.511_0.237_277.8)]"
         />
-        <div className="mt-2 text-center text-2xl font-bold text-indigo-600">
+        <div className="mt-2 text-center text-2xl font-bold text-primary">
           {form.weeklyHours} 小时 / 周
         </div>
         <div className="mt-6 flex justify-between">
-          <button
-            onClick={() => setStep(2)}
-            className="rounded-lg px-4 py-2 text-sm text-slate-500"
-          >
+          <Button variant="ghost" onClick={() => setStep(2)} className="text-muted-foreground">
             上一题
-          </button>
-          <button
-            onClick={submit}
-            className="rounded-lg bg-indigo-600 px-6 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            生成我的路径
-          </button>
+          </Button>
+          <Button onClick={submit}>生成我的路径</Button>
         </div>
       </div>
     </div>

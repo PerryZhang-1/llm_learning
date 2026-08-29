@@ -1,0 +1,40 @@
+name: frontend-check
+
+on:
+  pull_request:
+    paths:
+      - "llm-platform/src/**"
+      - "llm-platform/scripts/copy-scan.mjs"
+      - "content/scripts/copy-rules.mjs"
+      - ".github/workflows/frontend-check.yml"
+  push:
+    branches: [main]
+    paths:
+      - "llm-platform/src/**"
+      - "llm-platform/scripts/copy-scan.mjs"
+      - "content/scripts/copy-rules.mjs"
+      - ".github/workflows/frontend-check.yml"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: llm-platform/package-lock.json
+
+      - name: 安装依赖
+        run: npm ci
+        working-directory: llm-platform
+
+      - name: 前端文案扫描（§8.4 全量档）
+        run: node scripts/copy-scan.mjs
+        working-directory: llm-platform
+
+      - name: ESLint
+        run: npm run lint
+        working-directory: llm-platform

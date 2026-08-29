@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useCallback, useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
+import { Button } from "@/components/ui/button";
 
 /** 统一 fetch：JSON 提交，401 时跳登录 */
 export async function apiFetch(path: string, init?: RequestInit) {
@@ -18,23 +19,28 @@ export async function apiFetch(path: string, init?: RequestInit) {
   return { status: res.status, data };
 }
 
-/** 顶部导航 */
+const NAV_LINKS = [
+  { href: "/", label: "学习总览" },
+  { href: "/tree", label: "知识树" },
+  { href: "/me", label: "个人中心" },
+  { href: "/admin", label: "管理端" },
+];
+
+/** 顶部导航（DESIGN.md：sticky + backdrop-blur + token 配色） */
 export function TopNav() {
-  const links = [
-    { href: "/", label: "学习总览" },
-    { href: "/tree", label: "知识树" },
-    { href: "/me", label: "个人中心" },
-    { href: "/admin", label: "管理端" },
-  ];
   return (
-    <nav className="sticky top-0 z-10 border-b border-slate-200 bg-white/90 backdrop-blur">
+    <nav className="sticky top-0 z-10 border-b border-border/60 bg-card/80 backdrop-blur">
       <div className="mx-auto flex max-w-5xl items-center gap-6 px-4 py-3">
-        <Link href="/" className="text-lg font-bold text-indigo-600">
+        <Link href="/" className="text-lg font-bold text-primary">
           大模型自学平台
         </Link>
-        <div className="flex gap-4 text-sm">
-          {links.map((l) => (
-            <Link key={l.href} href={l.href} className="text-slate-600 hover:text-indigo-600">
+        <div className="flex gap-1 text-sm">
+          {NAV_LINKS.map((l) => (
+            <Link
+              key={l.href}
+              href={l.href}
+              className="rounded-lg px-3 py-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+            >
               {l.label}
             </Link>
           ))}
@@ -44,29 +50,29 @@ export function TopNav() {
   );
 }
 
-/** 温和提示 Toast（无惩罚文案基线：永远不出现负面措辞） */
-export function useToast() {
-  const [toast, setToast] = useState<string | null>(null);
-  const show = useCallback((msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  }, []);
-  const node = toast ? (
-    <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-indigo-600 px-5 py-2 text-sm text-white shadow-lg">
-      {toast}
-    </div>
-  ) : null;
-  return { show, node };
-}
-
 /** 页面容器 */
 export function Page({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       <TopNav />
       <main className="mx-auto max-w-5xl px-4 py-8">{children}</main>
     </div>
   );
+}
+
+/** 页面大标题 + 副标题的统一规格 */
+export function PageHeader({ title, desc }: { title: string; desc?: string }) {
+  return (
+    <div>
+      <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
+      {desc && <p className="mt-1 text-sm text-muted-foreground">{desc}</p>}
+    </div>
+  );
+}
+
+/** 统一卡片容器 */
+export function CardBox({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`rounded-xl border bg-card p-5 shadow-sm ${className}`}>{children}</div>;
 }
 
 /** 未登录守卫：数据返回 401 时已由 apiFetch 跳转，此处仅渲染占位 */
@@ -97,3 +103,6 @@ export function useAuthGuard<T>(fetcher: () => Promise<{ status: number; data: T
 
   return { data, loading };
 }
+
+// re-export 便于页面统一引入
+export { Button };

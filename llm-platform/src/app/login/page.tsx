@@ -2,14 +2,16 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { apiFetch, useToast } from "@/components/ui";
+import { toast } from "sonner";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { apiFetch } from "@/components/ui";
 
 /**
  * 登录页：邮箱 + 验证码（开发模式固定 123456）
  */
 export default function LoginPage() {
   const router = useRouter();
-  const { show, node } = useToast();
   const [email, setEmail] = useState("");
   const [nickname, setNickname] = useState("");
   const [code, setCode] = useState("");
@@ -21,12 +23,8 @@ export default function LoginPage() {
       method: "POST",
       body: JSON.stringify({ email }),
     });
-    if (!data.ok) {
-      show(data.message);
-      return;
-    }
     setSent(true);
-    show(data.message);
+    toast(data.message);
   }
 
   async function login() {
@@ -37,7 +35,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, code, nickname }),
       });
       if (!data.ok) {
-        show(data.message);
+        toast(data.message);
         return;
       }
       // 新用户先测评；老用户回总览
@@ -48,53 +46,53 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      {node}
-      <div className="w-full max-w-sm rounded-xl bg-white p-8 shadow-sm">
-        <h1 className="text-xl font-bold text-slate-800">登录 / 注册</h1>
-        <p className="mt-1 text-sm text-slate-400">邮箱验证码登录，无需记密码</p>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-accent/60 to-background px-4">
+      <div className="w-full max-w-sm rounded-2xl border bg-card p-8 shadow-sm">
+        <h1 className="text-xl font-bold text-foreground">登录 / 注册</h1>
+        <p className="mt-1 text-sm text-muted-foreground">邮箱验证码登录，无需记密码</p>
 
-        <label className="mt-6 block text-sm text-slate-600">邮箱</label>
-        <div className="mt-1 flex gap-2">
-          <input
-            className="flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+        <label className="mt-6 block text-sm text-muted-foreground">邮箱</label>
+        <div className="mt-1.5 flex gap-2">
+          <Input
             placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <button
+          <Button
+            type="button"
+            variant="secondary"
+            className="shrink-0"
             onClick={sendCode}
-            className="shrink-0 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-600 hover:bg-indigo-100"
           >
             {sent ? "重发" : "发验证码"}
-          </button>
+          </Button>
         </div>
 
-        <label className="mt-4 block text-sm text-slate-600">验证码</label>
-        <input
-          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+        <label className="mt-4 block text-sm text-muted-foreground">验证码</label>
+        <Input
+          className="mt-1.5"
           placeholder="开发模式固定 123456"
           value={code}
           onChange={(e) => setCode(e.target.value)}
         />
 
-        <label className="mt-4 block text-sm text-slate-600">
-          昵称 <span className="text-slate-300">（选填）</span>
+        <label className="mt-4 block text-sm text-muted-foreground">
+          昵称 <span className="text-muted-foreground/50">（选填）</span>
         </label>
-        <input
-          className="mt-1 w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:border-indigo-400 focus:outline-none"
+        <Input
+          className="mt-1.5"
           placeholder="给自己起个名字"
           value={nickname}
           onChange={(e) => setNickname(e.target.value)}
         />
 
-        <button
+        <Button
           onClick={login}
           disabled={busy || !email || !code}
-          className="mt-6 w-full rounded-lg bg-indigo-600 py-2.5 font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+          className="mt-6 w-full py-2.5"
         >
           {busy ? "登录中…" : "进入学习"}
-        </button>
+        </Button>
       </div>
     </div>
   );
